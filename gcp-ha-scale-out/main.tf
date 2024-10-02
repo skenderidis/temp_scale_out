@@ -34,7 +34,7 @@ module "bigip03" {
   image               = var.image
   service_account     = var.service_account
   f5_password         = var.f5_password
-  sleep_time          = "600s"
+  sleep_time          = "10s"
   mgmt_subnet_ids     = [{ "subnet_id" = data.terraform_remote_state.ha.outputs.mgmt_subnetwork, "public_ip" = true, "private_ip_primary" = "10.1.0.12" }]
   external_subnet_ids = [{ "subnet_id" = data.terraform_remote_state.ha.outputs.external_subnetwork, "public_ip" = false, "private_ip_primary" = "10.2.0.12", "private_ip_secondary" = "10.2.0.22" }]
   internal_subnet_ids = [{ "subnet_id" = data.terraform_remote_state.ha.outputs.internal_subnetwork, "public_ip" = false, "private_ip_primary" = "10.3.0.12", "private_ip_secondary" = "10.3.0.22" }]
@@ -68,7 +68,7 @@ module "bigip04" {
   image               = var.image
   service_account     = var.service_account
   f5_password         = var.f5_password
-  sleep_time          = "600s"
+  sleep_time          = "10s"
   mgmt_subnet_ids     = [{ "subnet_id" = data.terraform_remote_state.ha.outputs.mgmt_subnetwork, "public_ip" = true, "private_ip_primary" = "10.1.0.13" }]
   external_subnet_ids = [{ "subnet_id" = data.terraform_remote_state.ha.outputs.external_subnetwork, "public_ip" = false, "private_ip_primary" = "10.2.0.13", "private_ip_secondary" = "10.2.0.23" }]
   internal_subnet_ids = [{ "subnet_id" = data.terraform_remote_state.ha.outputs.internal_subnetwork, "public_ip" = false, "private_ip_primary" = "10.3.0.13", "private_ip_secondary" = "10.3.0.23" }]
@@ -125,6 +125,49 @@ resource "null_resource" "add_bigip03_to_cluster" {
       bigip_01_name  = "${self.triggers.bigip_01_name}"          # This will be used for the HA Failover Group
       bigip_02_name  = "${self.triggers.bigip_02_name}"          # This will be used for the HA Failover Group
       bigip_03_name  = "${self.triggers.bigip_03_ip}"             # For the device name we will use the IP address of the external interface
+      f5_password    = "${self.triggers.password}"               # The F5 Device password
+    }
+  }
+
+  depends_on = [module.bigip03, module.bigip04]
+}
+
+
+resource "null_resource" "add_bigip04_to_cluster" {
+  count = var.scale_out >= 2 ? 1 : 0   
+  triggers = {
+    bigip_01_ip        = data.terraform_remote_state.ha.outputs.mgmtPublicIP_BIGIP01           # This will be used to reach (from Terraform) the primary appliance and run the API requests
+    bigip_01_name      = data.terraform_remote_state.ha.outputs.Name_BIGIP01         # This will be used for the HA Failover Group
+    bigip_02_name      = data.terraform_remote_state.ha.outputs.Name_BIGIP02         # This will be used for the HA Failover Group
+    bigip_03_ip        = "10.2.0.12"                                                # This will be used to add device to trust
+    bigip_04_ip        = "10.2.0.13"                                                # This will be used to add device to trust
+    password          = var.f5_password           # The F5 Device password
+  }
+
+  # Append the entry on create
+  provisioner "local-exec" {
+    when    = create
+    command = "./add_bigip04_to_cluster.sh"
+    environment = {
+      primary_bigip  = "${self.triggers.bigip_01_ip}"            # Will be used to reach to the primary appliance and run the API requests
+      bigip_01_name  = "${self.triggers.bigip_01_name}"          # This will be used for the HA Failover Group
+      bigip_02_name  = "${self.triggers.bigip_02_name}"          # This will be used for the HA Failover Group
+      bigip_03_name  = "${self.triggers.bigip_03_ip}"             # For the device name we will use the IP address of the external interface
+      bigip_04_name  = "${self.triggers.bigip_04_ip}"             # For the device name we will use the IP address of the external interface
+      f5_password    = "${self.triggers.password}"               # The F5 Device password
+    }
+  }
+
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = "./remove_bigip04_from_cluster.sh"
+    environment = {
+      primary_bigip  = "${self.triggers.bigip_01_ip}"            # Will be used to reach to the primary appliance and run the API requests
+      bigip_01_name  = "${self.triggers.bigip_01_name}"          # This will be used for the HA Failover Group
+      bigip_02_name  = "${self.triggers.bigip_02_name}"          # This will be used for the HA Failover Group
+      bigip_03_name  = "${self.triggers.bigip_03_ip}"             # For the device name we will use the IP address of the external interface
+      bigip_04_name  = "${self.triggers.bigip_04_ip}"             # For the device name we will use the IP address of the external interface
       f5_password    = "${self.triggers.password}"               # The F5 Device password
     }
   }

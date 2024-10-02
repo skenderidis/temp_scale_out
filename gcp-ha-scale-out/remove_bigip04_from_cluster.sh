@@ -26,7 +26,7 @@ trust_group_devices=$(jq -r '.items[].name' "trust_group_devices.json")
 ###   -------------------------------------------------------------------   ###
 ###                                                                         ###
 
-
+echo "Adjusting the FailoverGroup"
 # Depending on the scale_out value we will determine which devices to add to the failover group
 failover_group='{"devices": ["'$bigip_01_name'","'$bigip_02_name'","'$bigip_03_name'"]}'
 
@@ -41,6 +41,7 @@ if [ "$http_status" -ne 200 ]; then
     exit 1
 fi
 
+echo "Completed Successfully"
 
 ###                                                                   ###
 ###   -------------------------------------------------------------   ###
@@ -58,7 +59,7 @@ echo "Verify that the devices on the trust_group-device list matvches the device
 # Loop through each device name from the JSON
 for name in $trust_group_devices; do
     if ! echo "$device_names" | grep -q "$name"; then
-        echo "Device '$name' not found in device_names. Removing it from the trust group"
+        echo "Device '$name' found in device_names. Removing it from the trust group"
         api_url="https://$primary_bigip/mgmt/tm/cm/remove-from-trust"
         http_status=$(curl -sk -u "admin":"$f5_password" --header 'Content-Type: application/json' --data '{"command":"run","name":"Root","deviceName":"'$name'"}' -w "%{http_code}" -o "remove-from-trust.json" "$api_url" )
         # Check if the HTTP status code is 200

@@ -1,9 +1,3 @@
-variable "instance_count" {
-  description = "Number of Bigip instances to create( From terraform 0.13, module supports count feature to spin mutliple instances )"
-  type        = number
-  default     = 1
-}
-
 variable "prefix" {
   description = "Prefix for resources created by this module"
   type        = string
@@ -51,6 +45,6 @@ variable "f5_username" {
 }
 
 variable "scale_out" {
-  default     = 2
+  default     = 0
 }
 

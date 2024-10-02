@@ -1,0 +1,5 @@
+region = "us-central1"
+prefix = "tf-gcp-bigip"
+project_id=""
+service_account=""
+f5_password="Kostas123"
