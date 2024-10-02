@@ -1,87 +1,5 @@
-terraform {
-  required_version = ">= 0.13"
-}
-provider "google" {
-  project = var.project_id
-  region  = var.region
-  zone    = var.zone
-}
-
-# Create a random id
-#
-resource "random_id" "id" {
-  byte_length = 2
-}
-
-# Create random password for BIG-IP
-#
-resource "random_string" "password" {
-  length      = 16
-  min_upper   = 1
-  min_lower   = 1
-  min_numeric = 1
-  special     = false
-}
-resource "google_compute_network" "mgmtvpc" {
-  name                    = format("%s-mgmtvpc-%s", var.prefix, random_id.id.hex)
-  auto_create_subnetworks = false
-}
-resource "google_compute_network" "extvpc" {
-  name                    = format("%s-extvpc-%s", var.prefix, random_id.id.hex)
-  auto_create_subnetworks = false
-}
-resource "google_compute_network" "intvpc" {
-  name                    = format("%s-intvpc-%s", var.prefix, random_id.id.hex)
-  auto_create_subnetworks = false
-}
-resource "google_compute_subnetwork" "mgmt_subnetwork" {
-  name          = format("%s-mgmt-%s", var.prefix, random_id.id.hex)
-  ip_cidr_range = "10.1.0.0/16"
-  region        = var.region
-  network       = google_compute_network.mgmtvpc.id
-}
-resource "google_compute_subnetwork" "external_subnetwork" {
-  name          = format("%s-ext-%s", var.prefix, random_id.id.hex)
-  ip_cidr_range = "10.2.0.0/16"
-  region        = var.region
-  network       = google_compute_network.extvpc.id
-}
-
-resource "google_compute_subnetwork" "internal_subnetwork" {
-  name          = format("%s-int-%s", var.prefix, random_id.id.hex)
-  ip_cidr_range = "10.3.0.0/16"
-  region        = var.region
-  network       = google_compute_network.intvpc.id
-}
-
-resource "google_compute_firewall" "mgmt_firewall" {
-  name    = format("%s-mgmt-firewall-%s", var.prefix, random_id.id.hex)
-  network = google_compute_network.mgmtvpc.id
-  allow {
-    protocol = "tcp"
-    ports    = ["22", "80", "443", "8443"]
-  }
-  allow {
-    protocol = "icmp"
-  }
-  source_ranges = ["0.0.0.0/0"]
-}
-resource "google_compute_firewall" "ext_firewall" {
-  name    = format("%s-ext-firewall-%s", var.prefix, random_id.id.hex)
-  network = google_compute_network.extvpc.id
-  allow {
-    protocol = "tcp"
-    ports    = ["22", "80", "443", "8443", "4353"]
-  }
-  allow {
-    protocol = "icmp"
-  }
-  source_ranges = ["0.0.0.0/0"]
-}
-
-
 module "bigip01" {
-  source              = "./modules/f5-gcp/"
+  source              = "F5Networks/bigip-module/gcp"
   prefix              = format("%s-3nic", var.prefix)
   project_id          = var.project_id
   zone                = var.zone
@@ -92,10 +10,23 @@ module "bigip01" {
   mgmt_subnet_ids     = [{ "subnet_id" = google_compute_subnetwork.mgmt_subnetwork.id, "public_ip" = true, "private_ip_primary" = "10.1.0.10" }]
   external_subnet_ids = [{ "subnet_id" = google_compute_subnetwork.external_subnetwork.id, "public_ip" = false, "private_ip_primary" = "10.2.0.10", "private_ip_secondary" = "10.2.0.20" }]
   internal_subnet_ids = [{ "subnet_id" = google_compute_subnetwork.internal_subnetwork.id, "public_ip" = false, "private_ip_primary" = "10.3.0.10", "private_ip_secondary" = "10.3.0.20" }]
+  custom_user_data = templatefile("templates/startup-script.tpl", {
+    hostname               = var.primary_bigip_name
+    bigip_username         = var.f5_username
+    ssh_keypair            = file("~/.ssh/id_rsa.pub")
+    gcp_secret_manager_authentication = false
+    bigip_password         = var.f5_password
+    INIT_URL               = "https://github.com/F5Networks/f5-bigip-runtime-init/releases/download/2.0.3/f5-bigip-runtime-init-2.0.3-1.gz.run",
+    DO_URL                 = "https://github.com/F5Networks/f5-declarative-onboarding/releases/download/v1.45.0/f5-declarative-onboarding-1.45.0-6.noarch.rpm",
+    DO_VER                 = "v1.45.0"
+    AS3_URL                = "https://github.com/F5Networks/f5-appsvcs-extension/releases/download/v3.52.0/f5-appsvcs-3.52.0-5.noarch.rpm",
+    AS3_VER                = "v3.52.0"
+    NIC_COUNT              = true
+  })
 }
 
 module "bigip02" {
-  source              = "./modules/f5-gcp/"
+  source              = "F5Networks/bigip-module/gcp"
   prefix              = format("%s-3nic", var.prefix)
   project_id          = var.project_id
   zone                = var.zone
@@ -106,9 +37,20 @@ module "bigip02" {
   mgmt_subnet_ids     = [{ "subnet_id" = google_compute_subnetwork.mgmt_subnetwork.id, "public_ip" = true, "private_ip_primary" = "10.1.0.11" }]
   external_subnet_ids = [{ "subnet_id" = google_compute_subnetwork.external_subnetwork.id, "public_ip" = false, "private_ip_primary" = "10.2.0.11", "private_ip_secondary" = "10.2.0.21" }]
   internal_subnet_ids = [{ "subnet_id" = google_compute_subnetwork.internal_subnetwork.id, "public_ip" = false, "private_ip_primary" = "10.3.0.11", "private_ip_secondary" = "10.3.0.21" }]
+  custom_user_data = templatefile("templates/startup-script.tpl", {
+    hostname               = var.secondary_bigip_name
+    bigip_username         = var.f5_username
+    ssh_keypair            = file("~/.ssh/id_rsa.pub")
+    gcp_secret_manager_authentication = false
+    bigip_password         = var.f5_password
+    INIT_URL               = "https://github.com/F5Networks/f5-bigip-runtime-init/releases/download/2.0.3/f5-bigip-runtime-init-2.0.3-1.gz.run",
+    DO_URL                 = "https://github.com/F5Networks/f5-declarative-onboarding/releases/download/v1.45.0/f5-declarative-onboarding-1.45.0-6.noarch.rpm",
+    DO_VER                 = "v1.45.0"
+    AS3_URL                = "https://github.com/F5Networks/f5-appsvcs-extension/releases/download/v3.52.0/f5-appsvcs-3.52.0-5.noarch.rpm",
+    AS3_VER                = "v3.52.0"
+    NIC_COUNT              = true
+  })
 }
-
-
 
 
 ##  Create the DO declarations for BIGIP1
@@ -116,7 +58,7 @@ module "bigip02" {
 data "template_file" "tmpl_bigip1" {
   template = "${file("./templates/onboard_do_3nic_ha.tpl")}"
   vars = {
-    hostname      = module.bigip01.name
+    hostname      = var.primary_bigip_name
     primary       = "10.2.0.10"
     secondary     = "10.2.0.11"
     name_servers  = join(",", formatlist("\"%s\"", ["169.254.169.254"]))
@@ -135,7 +77,7 @@ data "template_file" "tmpl_bigip1" {
 
 # Save declaration to file for the primary device
 
-resource "null_resource" "do_bigip1" {
+resource "null_resource" "do_template_bigip1" {
 
   provisioner "local-exec" {
     command = "cat > primary-bigip.json <<EOL\n ${data.template_file.tmpl_bigip1.rendered}\nEOL"
@@ -150,7 +92,7 @@ resource "null_resource" "do_bigip1" {
 data "template_file" "tmpl_bigip2" {
   template = "${file("./templates/onboard_do_3nic_ha.tpl")}"
   vars = {
-    hostname      = module.bigip02.name
+    hostname      = var.secondary_bigip_name
     primary       = "10.2.0.10"
     secondary     = "10.2.0.11"
     name_servers  = join(",", formatlist("\"%s\"", ["169.254.169.254"]))
@@ -169,7 +111,7 @@ data "template_file" "tmpl_bigip2" {
 
 # Save declaration to file for the secondary device
 
-resource "null_resource" "do_bigip2" {
+resource "null_resource" "do_template_bigip2" {
 
   provisioner "local-exec" {
     command = "cat > secondary-bigip.json <<EOL\n ${data.template_file.tmpl_bigip2.rendered}\nEOL"
@@ -186,6 +128,7 @@ resource "null_resource" "do_bigip2" {
 
 resource "null_resource" "do_script_bigip01" {
   provisioner "local-exec" {
+    when    = create
     command = "./do-script.sh"
     environment = {
       TF_VAR_bigip_ip  = module.bigip01.mgmtPublicIP
@@ -195,16 +138,13 @@ resource "null_resource" "do_script_bigip01" {
       TF_VAR_prefix = "bigip01"
     }
   }
-  provisioner "local-exec" {
-    when    = destroy
-    command = "ls -la"
-    # This is where you can configure the BIGIQ revole API
-  } 
-  depends_on = [null_resource.do_bigip1]
+
+  depends_on = [null_resource.do_template_bigip1]
 }
 
 resource "null_resource" "do_script_bigip02" {
   provisioner "local-exec" {
+    when    = create
     command = "./do-script.sh"
     environment = {
       TF_VAR_bigip_ip  = module.bigip02.mgmtPublicIP
@@ -214,12 +154,8 @@ resource "null_resource" "do_script_bigip02" {
       TF_VAR_prefix = "bigip02"
     }
   }
-  provisioner "local-exec" {
-    when    = destroy
-    command = "ls -la"
-    # This is where you can configure the BIGIQ revole API
-  }
-    depends_on = [null_resource.do_bigip2]
+
+    depends_on = [null_resource.do_template_bigip2]
 
 }
 

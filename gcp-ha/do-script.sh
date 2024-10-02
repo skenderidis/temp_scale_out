@@ -65,5 +65,7 @@ else
     end_time=$(date +%s) # Get the end time
     elapsed_time=$((end_time - start_time)) # Calculate the elapsed time
     echo "Time elapsed: $elapsed_time seconds" # Print the elapsed time
+    rm -f ${PREFIX}-temp.json
+    rm -f ${PREFIX}-status.json
   fi
 fi

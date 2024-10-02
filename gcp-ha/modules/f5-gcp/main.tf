@@ -13,7 +13,6 @@ resource "random_id" "module_id" {
   byte_length = 2
 }
 
-
 locals {
   # Emes - none of this commented section should be needed
   # bigip_map = {

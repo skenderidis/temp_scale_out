@@ -1,21 +1,31 @@
+variable "instance_count" {
+  description = "Number of Bigip instances to create( From terraform 0.13, module supports count feature to spin mutliple instances )"
+  type        = number
+  default     = 1
+}
+
 variable "prefix" {
   description = "Prefix for resources created by this module"
   type        = string
   default     = "tf-gcp-bigip"
 }
+
 variable "project_id" {
   type        = string
   description = "The GCP project identifier where the cluster will be created."
 }
+
 variable "region" {
   type        = string
   description = "The compute region which will host the BIG-IP VMs"
 }
+
 variable "zone" {
   type        = string
   default     = "us-central1-a"
   description = "The compute zones which will host the BIG-IP VMs"
 }
+
 variable "image" {
   type        = string
   default     = "projects/f5-7626-networks-public/global/images/f5-bigip-17-1-1-4-0-0-9-payg-best-25mbps-240902165628"
@@ -30,7 +40,7 @@ variable "service_account" {
 variable "f5_password" {
   description = "service account email to use with BIG-IP vms"
   type        = string
-  default     = "Testing123"
+  default     = "Thisisthepassword123"
 }
 
 
@@ -40,14 +50,7 @@ variable "f5_username" {
   default     = "gcp_user"
 }
 
-variable "primary_bigip_name" {
-  description = "FQDN for primary BIGIP that will be used as the name"
-  type        = string
-  default     = "bigip01.local"
+variable "scale_out" {
+  default     = 2
 }
 
-variable "secondary_bigip_name" {
-  description = "FQDN for secondary BIGIP that will be used as the name"
-  type        = string
-  default     = "bigip02.local"
-}

@@ -7,7 +7,7 @@
     "class": "Tenant",
     "mySystem": {
       "class": "System",
-      "hostname": "${hostname}.local"
+      "hostname": "${hostname}"
     },
     "myDns": {
       "class": "DNS",
